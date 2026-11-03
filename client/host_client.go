@@ -14,23 +14,23 @@ const (
 func main() {
 	ctrl, err := net.Dial("tcp", aciIP+":7000")
 	if err != nil {
-		log.Fatal("could not connect to relay:", err)
+		log.Fatal("Failed to connect to Azure relay:", err)
 	}
-	log.Println("connected to relay")
+	// Send the 4-byte magic handshake so Azure knows we aren't a health probe
+	ctrl.Write([]byte("CTRL"))
+	log.Println("Connected and authenticated with Azure Relay!")
 
 	buf := make([]byte, 1)
 	for {
-		// wait for 1 byte join signal
 		_, err := ctrl.Read(buf)
 		if err != nil {
-			log.Fatal("relay connection closed", err)
+			log.Fatal("Relay control connection closed:", err)
 		}
 
 		go func() {
-			// bridge local and cloud data port
 			gameConn, err := net.Dial("tcp", localGame)
 			if err != nil {
-				log.Println("local server not running on", localGame)
+				log.Println("Local server not running on", localGame)
 				return
 			}
 			relayData, err := net.Dial("tcp", aciIP+":7002")
@@ -38,6 +38,8 @@ func main() {
 				gameConn.Close()
 				return
 			}
+			// Authenticate the data pipe
+			relayData.Write([]byte("DATA"))
 
 			defer gameConn.Close()
 			defer relayData.Close()
